@@ -1,0 +1,19 @@
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Playwright / tooling artifacts
+.playwright-mcp/
+
+# OS
+.DS_Store

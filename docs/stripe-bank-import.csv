@@ -1,0 +1,6 @@
+*Date,*Amount,Payee,Description,Reference,Check Number
+07/04/2026,450.00,Bob,Monthly retainer,,
+07/04/2026,89.50,Carol,Logo work,,
+07/04/2026,-89.50,Carol,Refund - Logo work,,
+07/04/2026,150.00,Dave,Ad hoc consulting,,
+07/04/2026,357.84,Emma,International consulting - EUR 320.00 @ 1.1182,,
