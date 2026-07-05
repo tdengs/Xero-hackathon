@@ -197,9 +197,9 @@ function TransactionRow({
   const formattedDate = format(parseISO(tx.date), 'MMM d');
   const isNegative = tx.amount < 0;
   const absAmount = Math.abs(tx.amount);
-  const formatted = new Intl.NumberFormat('en-US', {
+  const formatted = new Intl.NumberFormat('en-GB', {
     style: 'currency',
-    currency: 'USD',
+    currency: tx.currency ?? 'USD',
     minimumFractionDigits: 2,
   }).format(absAmount);
 

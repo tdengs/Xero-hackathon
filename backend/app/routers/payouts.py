@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models import Payout, PayoutItem, ReconciliationJob
+from app.models.payout import PayoutStatus, ReconciliationStatus
 from app.models.reconciliation import JobStatus
 from app.models.user import User
 from app.routers.auth import get_current_user
@@ -26,13 +28,13 @@ _stripe_svc = StripeService()
 
 
 class PayoutListItem(BaseModel):
-    id: str
+    id: uuid.UUID
     stripe_payout_id: str
     amount: float
     currency: str
-    status: str
-    arrival_date: str
-    reconciliation_status: str
+    status: PayoutStatus
+    arrival_date: date
+    reconciliation_status: ReconciliationStatus
 
     class Config:
         from_attributes = True
@@ -186,7 +188,7 @@ async def get_payout_summary(
     if payout is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout not found")
 
-    summary = await _stripe_svc.build_payout_summary(payout)
+    summary = await _stripe_svc.build_payout_summary(payout, db)
     return summary
 
 
@@ -233,12 +235,20 @@ async def explain_payout(
     ):
         return ExplainResponse(job_id=str(existing_job.id), status=existing_job.status.value)
 
-    # Create a queued job record and enqueue via ARQ
-    job = ReconciliationJob(
-        payout_id=payout_uuid,
-        status=JobStatus.queued,
-    )
-    db.add(job)
+    if existing_job is not None:
+        # One job per payout (DB unique) — reset failed/completed jobs for retry
+        job = existing_job
+        job.status = JobStatus.queued
+        job.started_at = None
+        job.completed_at = None
+        job.error_message = None
+    else:
+        job = ReconciliationJob(
+            payout_id=payout_uuid,
+            status=JobStatus.queued,
+        )
+        db.add(job)
+
     await db.flush()
     job_id = str(job.id)
     await db.commit()

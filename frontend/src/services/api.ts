@@ -54,8 +54,12 @@ api.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      const requestUrl = error.config?.url ?? '';
+      // Don't redirect on failed login — let the login form show the error
+      if (!requestUrl.includes('/auth/login')) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -65,7 +69,7 @@ export async function fetchPayouts(params?: {
   limit?: number;
   offset?: number;
 }): Promise<Payout[]> {
-  const response = await api.get<Payout[]>('/payouts', { params });
+  const response = await api.get<Payout[]>('/payouts/', { params });
   return response.data;
 }
 

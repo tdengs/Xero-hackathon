@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 import stripe
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -50,6 +50,11 @@ def _to_decimal(amount_int: int, currency: str) -> Decimal:
     return Decimal(amount_int) / Decimal(100)
 
 
+def _stripe_to_dict(obj: Any) -> dict:
+    """Convert a Stripe SDK object to a plain dict (dict() raises KeyError on newer SDK)."""
+    return obj.to_dict() if hasattr(obj, "to_dict") else dict(obj)
+
+
 class StripeService:
     """Async wrapper around the Stripe Python SDK for payout operations."""
 
@@ -87,7 +92,7 @@ class StripeService:
         """Retrieve a single Stripe payout object."""
         payout = stripe.Payout.retrieve(payout_id)
         logger.info("get_payout: payout_id=%s", payout_id)
-        return dict(payout)
+        return _stripe_to_dict(payout)
 
     async def get_payout_transactions(self, payout_id: str) -> list[dict]:
         """
@@ -95,9 +100,23 @@ class StripeService:
         consuming every page via auto_paging_iter.
         """
         transactions: list[dict] = []
-        page = stripe.BalanceTransaction.list(payout=payout_id, limit=100)
-        for txn in page.auto_paging_iter():
-            transactions.append(dict(txn))
+        try:
+            page = stripe.BalanceTransaction.list(payout=payout_id, limit=100)
+            for txn in page.auto_paging_iter():
+                transactions.append(_stripe_to_dict(txn))
+        except stripe.InvalidRequestError as exc:
+            # Manual payouts cannot be filtered by payout ID in the Balance
+            # Transactions API — fall back to the payout's own balance txn.
+            if "manual" not in str(exc).lower():
+                raise
+            logger.warning(
+                "get_payout_transactions: manual payout %s — using payout balance transaction only",
+                payout_id,
+            )
+            payout_dict = _stripe_to_dict(stripe.Payout.retrieve(payout_id))
+            bt_id = payout_dict.get("balance_transaction")
+            if bt_id:
+                transactions.append(_stripe_to_dict(stripe.BalanceTransaction.retrieve(bt_id)))
 
         logger.info(
             "get_payout_transactions: payout_id=%s count=%d",
@@ -125,12 +144,18 @@ class StripeService:
             select(Payout).where(Payout.stripe_payout_id == payout_id)
         )
         existing = result.scalar_one_or_none()
-        if existing is not None and existing.items:
-            logger.info(
-                "sync_payout_to_db: payout_id=%s already in DB with items — skipping",
-                payout_id,
+        if existing is not None:
+            item_count = await db.scalar(
+                select(func.count())
+                .select_from(PayoutItem)
+                .where(PayoutItem.payout_id == existing.id)
             )
-            return existing
+            if item_count and item_count > 0:
+                logger.info(
+                    "sync_payout_to_db: payout_id=%s already in DB with items — skipping",
+                    payout_id,
+                )
+                return existing
 
         # ---- Fetch from Stripe ----------------------------------------
         stripe_payout = await self.get_payout(payout_id)
@@ -203,7 +228,7 @@ class StripeService:
         )
         return payout_record
 
-    async def build_payout_summary(self, payout: Payout) -> dict:
+    async def build_payout_summary(self, payout: Payout, db: AsyncSession) -> dict:
         """
         Aggregate PayoutItem rows into a financial summary dict.
 
@@ -229,7 +254,10 @@ class StripeService:
 
         counts: dict[str, int] = {t.value: 0 for t in PayoutItemType}
 
-        for item in payout.items:
+        items_result = await db.execute(
+            select(PayoutItem).where(PayoutItem.payout_id == payout.id)
+        )
+        for item in items_result.scalars().all():
             amount = Decimal(str(item.amount))
             counts[item.type.value] += 1
             if item.type == PayoutItemType.payment:

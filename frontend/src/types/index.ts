@@ -72,6 +72,7 @@ export interface BankTransaction {
   id: string;
   date: string;
   amount: number;
+  currency?: string;
   description: string;
   status: 'reconciled' | 'unreconciled';
   payoutId: string | null;

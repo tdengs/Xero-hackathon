@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import anthropic
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -273,14 +273,37 @@ class ReconciliationAgent:
         if payout is None:
             raise ValueError(f"Payout {payout_id} not found in database")
 
-        # ---- Create job record ----------------------------------------
-        job = ReconciliationJob(
-            payout_id=payout.id,
-            status=JobStatus.running,
-            started_at=datetime.now(tz=timezone.utc),
-            agent_model=self._model,
+        # ---- Reuse queued job from API or create if missing -----------
+        job_result = await db.execute(
+            select(ReconciliationJob).where(ReconciliationJob.payout_id == payout.id)
         )
-        db.add(job)
+        job = job_result.scalar_one_or_none()
+        if job is None:
+            job = ReconciliationJob(
+                payout_id=payout.id,
+                status=JobStatus.running,
+                started_at=datetime.now(tz=timezone.utc),
+                agent_model=self._model,
+            )
+            db.add(job)
+        else:
+            await db.execute(
+                delete(ReconciliationEvidence).where(
+                    ReconciliationEvidence.job_id == job.id
+                )
+            )
+            job.status = JobStatus.running
+            job.started_at = datetime.now(tz=timezone.utc)
+            job.completed_at = None
+            job.error_message = None
+            job.agent_model = self._model
+            job.agent_reasoning = None
+            job.explanation_json = None
+            job.items_matched = None
+            job.items_unmatched = None
+            job.total_explained = None
+            job.total_unexplained = None
+            job.journal_entries_created = None
         await db.flush()
 
         # ---- Run agent -----------------------------------------------
@@ -481,12 +504,15 @@ class ReconciliationAgent:
         """
         if name == "get_payout_summary":
             target_payout = await _load_payout(inputs["payout_id"], db, payout)
-            return await self.stripe_svc.build_payout_summary(target_payout)
+            return await self.stripe_svc.build_payout_summary(target_payout, db)
 
         if name == "get_payout_items":
             target_payout = await _load_payout(inputs["payout_id"], db, payout)
             type_filter: Optional[str] = inputs.get("item_type")
-            items = target_payout.items
+            items_result = await db.execute(
+                select(PayoutItem).where(PayoutItem.payout_id == target_payout.id)
+            )
+            items = list(items_result.scalars().all())
             if type_filter:
                 try:
                     filter_enum = PayoutItemType(type_filter)
@@ -533,7 +559,7 @@ class ReconciliationAgent:
 
         if name == "detect_anomalies":
             target_payout = await _load_payout(inputs["payout_id"], db, payout)
-            summary = await self.stripe_svc.build_payout_summary(target_payout)
+            summary = await self.stripe_svc.build_payout_summary(target_payout, db)
             return {
                 "payout_id": inputs["payout_id"],
                 "anomalies": summary["anomalies"],
@@ -583,25 +609,28 @@ def _parse_agent_json(text: str) -> dict:
     """
     text = text.strip()
 
-    # Strip optional markdown fences
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # Drop opening fence (and optional language tag) and closing fence
-        inner_lines = []
-        inside = False
-        for line in lines:
-            if line.startswith("```") and not inside:
-                inside = True
-                continue
-            if line.startswith("```") and inside:
-                break
-            if inside:
-                inner_lines.append(line)
-        text = "\n".join(inner_lines).strip()
+    # Extract JSON from a markdown fence anywhere in the response
+    if "```" in text:
+        fence_start = text.find("```")
+        after_open = text.find("\n", fence_start)
+        if after_open != -1:
+            fence_end = text.find("```", after_open + 1)
+            if fence_end != -1:
+                text = text[after_open + 1 : fence_end].strip()
 
     try:
         return json.loads(text)
-    except json.JSONDecodeError as exc:
+    except json.JSONDecodeError:
+        # Last resort: parse the outermost JSON object in the text
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            try:
+                return json.loads(text[start : end + 1])
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"Agent returned non-JSON in final turn: {exc}\n\nRaw text:\n{text[:500]}"
+                ) from exc
         raise RuntimeError(
-            f"Agent returned non-JSON in final turn: {exc}\n\nRaw text:\n{text[:500]}"
-        ) from exc
+            f"Agent returned non-JSON in final turn\n\nRaw text:\n{text[:500]}"
+        )
