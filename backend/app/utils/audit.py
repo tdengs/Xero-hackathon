@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,10 +36,10 @@ async def log_action(
     entry = AuditLog(
         action=action,
         entity_type=entity_type,
-        entity_id=str(entity_id),
+        entity_id=entity_id if isinstance(entity_id, uuid.UUID) else uuid.UUID(str(entity_id)),
         user_id=user_id,
-        before=before,
-        after=after,
+        before_state=before,
+        after_state=after,
         agent_job_id=agent_job_id,
         ip_address=ip_address,
     )

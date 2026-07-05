@@ -36,8 +36,8 @@ async def startup(ctx: dict) -> None:
         expire_on_commit=False,
         autoflush=False,
     )
-    ctx["agent"] = ReconciliationAgent()
     ctx["xero_svc"] = XeroService()
+    ctx["agent"] = ReconciliationAgent(xero_svc=ctx["xero_svc"])
     logger.info("reconciliation_worker_started")
 
 

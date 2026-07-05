@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,8 +13,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import BankFeed from './BankFeed';
 import ExplainPane from '../ExplainPane/ExplainPane';
-import { fetchBankTransactions, syncPayouts, getXeroAuthorizeUrl } from '@/services/api';
-import type { BankTransaction } from '@/types';
+import { fetchBankTransactions, syncPayouts, getXeroAuthorizeUrl, fetchPayouts } from '@/services/api';
+import type { BankTransaction, Payout } from '@/types';
 import clsx from 'clsx';
 
 // ---------------------------------------------------------------------------
@@ -269,6 +269,39 @@ function QuickStats({ transactions }: { transactions: BankTransaction[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Merge synced Stripe payouts into the bank feed
+// ---------------------------------------------------------------------------
+function mergeBankFeedWithPayouts(
+  xeroTransactions: BankTransaction[],
+  payouts: Payout[]
+): BankTransaction[] {
+  // Only show Xero rows already linked to a Stripe payout — skip unrelated demo data
+  const linkedXero = xeroTransactions.filter((t) => t.payoutId !== null);
+
+  const linkedPayoutIds = new Set(
+    linkedXero.map((t) => t.payoutId).filter((id): id is string => id !== null)
+  );
+
+  const stripeRows: BankTransaction[] = payouts
+    .filter((p) => !linkedPayoutIds.has(p.id))
+    .map((p) => ({
+      id: `stripe-${p.id}`,
+      date: p.arrivalDate,
+      amount: p.amount,
+      currency: p.currency,
+      description: `Stripe payout · ${p.stripePayoutId}`,
+      status: 'unreconciled' as const,
+      payoutId: p.id,
+      reconciliationStatus:
+        p.reconciliationStatus === 'failed' ? 'failed' : p.reconciliationStatus,
+    }));
+
+  return [...stripeRows, ...linkedXero].sort((a, b) =>
+    b.date.localeCompare(a.date)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 export default function Dashboard() {
@@ -278,7 +311,7 @@ export default function Dashboard() {
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Fetch bank transactions
+  // Fetch bank transactions (Xero) and synced Stripe payouts
   const {
     data: transactions = [],
     isLoading,
@@ -291,6 +324,16 @@ export default function Dashboard() {
     retry: false,
   });
 
+  const { data: payouts = [], refetch: refetchPayouts } = useQuery<Payout[]>({
+    queryKey: ['payouts'],
+    queryFn: () => fetchPayouts(),
+  });
+
+  const feedTransactions = useMemo(
+    () => mergeBankFeedWithPayouts(transactions, payouts),
+    [transactions, payouts]
+  );
+
   const isXeroNotConnected =
     isError &&
     (error as { response?: { status?: number } })?.response?.status === 403;
@@ -299,13 +342,15 @@ export default function Dashboard() {
     setIsSyncing(true);
     try {
       await syncPayouts();
-      await refetch();
+      // Background sync on the API — allow time before refetching
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      await Promise.all([refetch(), refetchPayouts()]);
     } catch {
       // Sync errors are silent for now
     } finally {
       setIsSyncing(false);
     }
-  }, [refetch]);
+  }, [refetch, refetchPayouts]);
 
   const handleConnectXero = useCallback(async () => {
     try {
@@ -400,7 +445,7 @@ export default function Dashboard() {
                   <SkeletonBlock h={72} />
                 </div>
               ) : (
-                <QuickStats transactions={transactions} />
+                <QuickStats transactions={feedTransactions} />
               )}
             </section>
           </div>
@@ -475,7 +520,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                 <BankFeed
-                  transactions={transactions}
+                  transactions={feedTransactions}
                   onExplain={handleExplain}
                   onViewAudit={handleViewAudit}
                   onSync={handleSync}

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 
 import httpx
@@ -633,6 +633,17 @@ class XeroService:
             List of matching invoice dicts.
         """
         where_clauses: list[str] = ['(Status=="AUTHORISED"||Status=="PAID")']
+
+        if from_date is not None:
+            if isinstance(from_date, str):
+                from_date = date.fromisoformat(from_date[:10])
+            elif isinstance(from_date, datetime):
+                from_date = from_date.date()
+        if to_date is not None:
+            if isinstance(to_date, str):
+                to_date = date.fromisoformat(to_date[:10])
+            elif isinstance(to_date, datetime):
+                to_date = to_date.date()
 
         if amount_min is not None:
             where_clauses.append(f"AmountDue>={amount_min}")

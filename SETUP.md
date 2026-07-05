@@ -13,9 +13,9 @@ You need accounts on three external services. None cost money to get started.
 **Xero (free developer account)**
 1. Go to [developer.xero.com](https://developer.xero.com) and sign up
 2. Create a new app under "My Apps"
-3. Set the redirect URI to `http://localhost:8000/auth/xero/callback`
+3. Set the redirect URI to `http://localhost:8000/api/v1/auth/xero/callback`
 4. Copy your **Client ID** and **Client Secret**
-5. Under OAuth 2.0 scopes, enable: `openid`, `profile`, `email`, `accounting.transactions`, `accounting.contacts`, `offline_access`
+5. Under OAuth 2.0 scopes, enable: `openid`, `profile`, `email`, `accounting.banktransactions`, `accounting.invoices`, `accounting.manualjournals`, `accounting.contacts`, `offline_access`
 6. You also need a free Xero Demo Company to test against — create one at [go.xero.com/app/signup](https://go.xero.com/app/signup)
 
 **Stripe (use test mode)**
@@ -61,8 +61,8 @@ REDIS_URL=redis://localhost:6379/0
 # ── Xero OAuth ───────────────────────────────────────────────────────────────
 XERO_CLIENT_ID=your_xero_client_id_here
 XERO_CLIENT_SECRET=your_xero_client_secret_here
-XERO_REDIRECT_URI=http://localhost:8000/auth/xero/callback
-XERO_SCOPES=openid profile email accounting.transactions accounting.contacts offline_access
+XERO_REDIRECT_URI=http://localhost:8000/api/v1/auth/xero/callback
+XERO_SCOPES=openid profile email accounting.banktransactions accounting.invoices accounting.manualjournals accounting.contacts offline_access
 
 # ── Stripe ───────────────────────────────────────────────────────────────────
 STRIPE_API_KEY=sk_test_your_key_here
