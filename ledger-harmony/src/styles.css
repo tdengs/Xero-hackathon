@@ -1,0 +1,183 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Reconciliation Agent design system.
+ * Ledger-paper aesthetic. Sage bg, brick-red flags, forest matches, slate accent.
+ */
+
+@theme inline {
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-rule: var(--rule);
+
+  --color-tint-shopify: var(--tint-shopify);
+  --color-tint-stripe: var(--tint-stripe);
+  --color-tint-xero: var(--tint-xero);
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0px;
+
+  /* ledger paper */
+  --background: oklch(0.945 0.014 130);      /* #EDF1EA */
+  --foreground: oklch(0.245 0.018 175);      /* #1C2B2A */
+
+  --card: oklch(0.968 0.010 130);
+  --card-foreground: oklch(0.245 0.018 175);
+
+  --popover: oklch(0.968 0.010 130);
+  --popover-foreground: oklch(0.245 0.018 175);
+
+  --primary: oklch(0.42 0.055 250);          /* #3E5C76 slate blue */
+  --primary-foreground: oklch(0.968 0.010 130);
+
+  --secondary: oklch(0.895 0.014 140);
+  --secondary-foreground: oklch(0.245 0.018 175);
+
+  --muted: oklch(0.905 0.012 140);
+  --muted-foreground: oklch(0.45 0.020 170);
+
+  --accent: oklch(0.42 0.055 250);
+  --accent-foreground: oklch(0.968 0.010 130);
+
+  --destructive: oklch(0.505 0.145 30);      /* #A63A2E brick */
+  --destructive-foreground: oklch(0.968 0.010 130);
+
+  --border: oklch(0.815 0.012 140);          /* #C7CEC3 */
+  --input: oklch(0.815 0.012 140);
+  --ring: oklch(0.42 0.055 250);
+
+  --success: oklch(0.48 0.075 155);          /* #2F6B4F forest */
+  --danger: oklch(0.505 0.145 30);           /* #A63A2E brick */
+  --warning: oklch(0.62 0.135 65);           /* #B87A2B amber */
+  --rule: oklch(0.815 0.012 140);            /* #C7CEC3 */
+
+  /* per-source tints, low opacity backgrounds */
+  --tint-shopify: oklch(0.48 0.075 155 / 0.14);
+  --tint-stripe: oklch(0.48 0.13 295 / 0.14);
+  --tint-xero: oklch(0.60 0.085 200 / 0.16);
+
+  --chart-1: oklch(0.48 0.075 155);
+  --chart-2: oklch(0.42 0.055 250);
+  --chart-3: oklch(0.505 0.145 30);
+  --chart-4: oklch(0.60 0.085 200);
+  --chart-5: oklch(0.48 0.13 295);
+
+  --sidebar: oklch(0.945 0.014 130);
+  --sidebar-foreground: oklch(0.245 0.018 175);
+  --sidebar-primary: oklch(0.42 0.055 250);
+  --sidebar-primary-foreground: oklch(0.968 0.010 130);
+  --sidebar-accent: oklch(0.895 0.014 140);
+  --sidebar-accent-foreground: oklch(0.245 0.018 175);
+  --sidebar-border: oklch(0.815 0.012 140);
+  --sidebar-ring: oklch(0.42 0.055 250);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    /* paper grain */
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.11  0 0 0 0 0.17  0 0 0 0 0.16  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+    background-repeat: repeat;
+    background-size: 240px 240px;
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-display);
+    font-variation-settings: "opsz" 96, "SOFT" 60, "WONK" 1;
+    letter-spacing: -0.01em;
+  }
+}
+
+@utility font-tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+@utility ledger-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-rule);
+  box-shadow: inset 0 0 0 1px var(--color-background), inset 0 0 0 2px var(--color-rule);
+  padding: 0;
+}
+
+@utility section-marker {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+@keyframes draw-stroke {
+  from { stroke-dashoffset: var(--dash, 120); }
+  to   { stroke-dashoffset: 0; }
+}
+
+@utility draw-in {
+  stroke-dasharray: var(--dash, 120);
+  stroke-dashoffset: var(--dash, 120);
+  animation: draw-stroke 900ms ease-out forwards;
+}
+
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@utility caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  margin-left: 2px;
+  animation: caret-blink 900ms steps(1) infinite;
+}

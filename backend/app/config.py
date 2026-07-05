@@ -65,13 +65,17 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = Field(
-        default=["http://localhost:5173"],
+        default=[
+            "http://localhost:5173",
+            "http://localhost:8080",
+            "http://localhost:3000",
+        ],
         description="List of allowed CORS origins",
     )
 
     # Frontend
     frontend_dashboard_url: str = Field(
-        default="http://localhost:5173",
+        default="http://localhost:8080/sources?xero=connected",
         description="URL to redirect to after successful Xero OAuth callback",
     )
 

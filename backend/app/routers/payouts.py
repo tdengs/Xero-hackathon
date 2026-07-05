@@ -7,6 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models import Payout, PayoutItem, ReconciliationJob
@@ -45,6 +46,8 @@ class PayoutItemOut(BaseModel):
     amount: float
     currency: str
     description: str | None
+    xero_invoice_id: str | None = None
+    xero_invoice_number: str | None = None
 
     class Config:
         from_attributes = True
@@ -60,6 +63,8 @@ class PayoutDetail(BaseModel):
     reconciliation_status: str
     description: str | None
     items: list[PayoutItemOut]
+    job_id: str | None = None
+    job_status: str | None = None
 
     class Config:
         from_attributes = True
@@ -134,15 +139,16 @@ async def get_payout(
     payout_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> Payout:
-    """Get a single payout with its line items."""
+) -> PayoutDetail:
     try:
         payout_uuid = uuid.UUID(payout_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid payout ID")
 
     result = await db.execute(
-        select(Payout).where(
+        select(Payout)
+        .options(selectinload(Payout.items))
+        .where(
             Payout.id == payout_uuid,
             Payout.user_id == current_user.id,
         )
@@ -150,7 +156,37 @@ async def get_payout(
     payout = result.scalar_one_or_none()
     if payout is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payout not found")
-    return payout
+
+    job_result = await db.execute(
+        select(ReconciliationJob).where(ReconciliationJob.payout_id == payout_uuid)
+    )
+    job = job_result.scalar_one_or_none()
+
+    return PayoutDetail(
+        id=str(payout.id),
+        stripe_payout_id=payout.stripe_payout_id,
+        amount=float(payout.amount),
+        currency=payout.currency,
+        status=payout.status.value,
+        arrival_date=payout.arrival_date.isoformat(),
+        reconciliation_status=payout.reconciliation_status.value,
+        description=payout.description,
+        items=[
+            PayoutItemOut(
+                id=str(item.id),
+                stripe_balance_transaction_id=item.stripe_balance_transaction_id,
+                type=item.type.value,
+                amount=float(item.amount),
+                currency=item.currency,
+                description=item.description,
+                xero_invoice_id=item.xero_invoice_id,
+                xero_invoice_number=item.xero_invoice_number,
+            )
+            for item in payout.items
+        ],
+        job_id=str(job.id) if job else None,
+        job_status=job.status.value if job else None,
+    )
 
 
 @router.post("/sync", response_model=SyncResponse)
